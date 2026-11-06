@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Invasion 3D"
+description = "Le jeu Invasion 3D en navigateur, avec combats contre des bots, comptes joueurs et classements persistants des kills, du temps de jeu et des crédits."
+version = "1.0.0"
+id = "artifacts/invasion-game"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20546
+
+[services.development]
+run = "pnpm --filter @workspace/invasion-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/invasion-game", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/invasion-game/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20546"
+BASE_PATH = "/"

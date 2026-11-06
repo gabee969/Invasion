@@ -10,6 +10,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Player accounts and sessions
+  - name: leaderboard
+    description: Player-only rankings
+  - name: game
+    description: Match results and weapon purchases
 paths:
   /healthz:
     get:
@@ -24,6 +30,181 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: registerPlayer
+      tags: [auth]
+      summary: Create a player account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountCredentialsInput"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerResponse"
+        "400":
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Username is already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/login:
+    post:
+      operationId: loginPlayer
+      tags: [auth]
+      summary: Sign in to a player account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountCredentialsInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Incorrect username or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/logout:
+    post:
+      operationId: logoutPlayer
+      tags: [auth]
+      summary: Sign out
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+  /auth/me:
+    get:
+      operationId: getCurrentPlayer
+      tags: [auth]
+      summary: Get the current signed-in player
+      responses:
+        "200":
+          description: Current player or null for a guest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentPlayerResponse"
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get the first 50 player scores
+      parameters:
+        - name: category
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [kills, coins, playtime]
+      responses:
+        "200":
+          description: Top 50 player accounts for the selected score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResponse"
+        "400":
+          description: Invalid leaderboard category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /player/matches:
+    post:
+      operationId: submitMatch
+      tags: [game]
+      summary: Save a completed match for the signed-in player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchResultInput"
+      responses:
+        "200":
+          description: Match recorded (or already recorded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResponse"
+        "400":
+          description: Invalid match result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /player/purchases:
+    post:
+      operationId: purchaseWeapon
+      tags: [game]
+      summary: Buy a weapon with the signed-in player's credits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeaponPurchaseInput"
+      responses:
+        "200":
+          description: Updated player wallet and weapon inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerResponse"
+        "400":
+          description: Invalid purchase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not enough credits or weapon already owned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +214,131 @@ components:
           type: string
       required:
         - status
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        kills:
+          type: integer
+          minimum: 0
+        playTimeSeconds:
+          type: integer
+          minimum: 0
+        coins:
+          type: integer
+          minimum: 0
+        ownedWeapons:
+          type: array
+          items:
+            type: string
+        gamesPlayed:
+          type: integer
+          minimum: 0
+      required: [id, username, kills, playTimeSeconds, coins, ownedWeapons, gamesPlayed]
+    PlayerResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/Player"
+      required: [user]
+    CurrentPlayerResponse:
+      type: object
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/Player"
+            - type: "null"
+      required: [user]
+    AccountCredentialsInput:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          pattern: "^[A-Za-z0-9_-]{3,20}$"
+        password:
+          type: string
+          minLength: 6
+          maxLength: 128
+      required: [username, password]
+    LogoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        username:
+          type: string
+        score:
+          type: integer
+      required: [rank, username, score]
+    LeaderboardResponse:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [kills, coins, playtime]
+        entries:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+      required: [category, entries]
+    MatchResultInput:
+      type: object
+      properties:
+        matchId:
+          type: string
+          format: uuid
+        kills:
+          type: integer
+          minimum: 0
+          maximum: 150
+        headshots:
+          type: integer
+          minimum: 0
+          maximum: 150
+        captures:
+          type: integer
+          minimum: 0
+          maximum: 150
+        durationSeconds:
+          type: integer
+          minimum: 1
+          maximum: 1200
+      required: [matchId, kills, headshots, captures, durationSeconds]
+    MatchResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/Player"
+        earnedCoins:
+          type: integer
+          minimum: 0
+        alreadyRecorded:
+          type: boolean
+      required: [user, earnedCoins, alreadyRecorded]
+    WeaponPurchaseInput:
+      type: object
+      properties:
+        weaponId:
+          type: string
+          enum: [smg, ak, m4, shot, lmg, awp, minigun]
+      required: [weaponId]
 
